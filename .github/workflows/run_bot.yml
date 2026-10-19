@@ -5,6 +5,11 @@ on:
   schedule:
     - cron: '0 */5 * * *'
 
+# 🛡️ EK WAQT PAR SIRF EK BOT INSTANCE CHALEGA (No Conflict Error)
+concurrency:
+  group: tg-bot-runner
+  cancel-in-progress: true
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
@@ -14,21 +19,24 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.11 with Cache
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
-      - name: Install FFmpeg, Aria2c & Python Packages
+      - name: Install FFmpeg, Aria2c & High-Speed Packages
         run: |
-          sudo apt-get update
+          sudo apt-get update -y
           sudo apt-get install -y ffmpeg aria2
-          pip install -U yt-dlp kurigram tgcrypto
+          pip install -U pip
+          pip install -U yt-dlp kurigram tgcrypto uvloop
 
-      - name: Run Telegram Bot
+      - name: Run Pro Telegram Bot
         env:
           API_ID: ${{ secrets.API_ID }}
           API_HASH: ${{ secrets.API_HASH }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          PYTHONUNBUFFERED: "1"
         run: |
           python -u bot.py
