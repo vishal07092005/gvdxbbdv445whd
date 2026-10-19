@@ -6,6 +6,11 @@ import math
 import json
 import shutil
 import asyncio
+try:
+    import uvloop
+    uvloop.install()
+except ImportError:
+    pass
 from urllib.parse import urlparse, parse_qs, unquote
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
