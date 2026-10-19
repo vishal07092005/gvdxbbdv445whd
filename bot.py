@@ -25,7 +25,7 @@ bot = Client(
     api_id=API_ID,
     api_hash=API_HASH,
     bot_token=BOT_TOKEN,
-    in_memory=True  # Session file disk par save karne ka jhanjhat khatam
+    in_memory=True
 )
 
 def humanbytes(size):
@@ -105,13 +105,17 @@ async def handle_link(client, message: Message):
     )
 
     try:
+        # ✅ FIX 1 & 2: Added Akamai Bypass Headers & Removed conflicting aria2c flags for HLS
         cmd = [
             "yt-dlp",
             "--no-warnings",
             "--newline",
-            "-N", "16",
-            "--downloader", "aria2c",
-            "--downloader-args", "aria2c:-x 16 -s 16 -k 1M",
+            "--no-check-certificate",
+            "-N", "16",  # 16 chunks ek sath download karega
+            "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "--referer", "https://appx-play.akamai.net.in/",
+            "--add-header", "Origin:https://appx-play.akamai.net.in",
+            "--remux-video", "mp4",
             "-o", output_mp4,
             m3u8_url
         ]
@@ -123,11 +127,17 @@ async def handle_link(client, message: Message):
         )
 
         last_update = 0
+        error_logs = []  # ✅ FIX 3: Last kuch lines save karega taaki asli error dikhe
+
         while True:
             line = await process.stdout.readline()
             if not line:
                 break
             line_str = line.decode("utf-8", errors="ignore").strip()
+            if line_str:
+                error_logs.append(line_str)
+                if len(error_logs) > 10:
+                    error_logs.pop(0)
 
             if "[download]" in line_str or "%" in line_str:
                 now = time.time()
@@ -145,7 +155,10 @@ async def handle_link(client, message: Message):
         await process.wait()
 
         if not os.path.exists(output_mp4):
-            await status_msg.edit_text("❌ **Download Failed!** Link expire ho gaya hai ya invalid hai.")
+            err_tail = "\n".join(error_logs[-5:]) if error_logs else "Unknown Error"
+            await status_msg.edit_text(
+                f"❌ **Download Failed!**\n\n**Reason (Logs):**\n`{err_tail}`"
+            )
             return
 
         await status_msg.edit_text("🖼️ **Generating Thumbnail & Extracting Duration...**")
