@@ -1,0 +1,28 @@
+name: Run Telegram Bot
+
+on:
+  workflow_dispatch: # Manual start button
+  schedule:
+    - cron: '0 */5 * * *' # Har 5 ghante me auto-restart
+
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350 # ~5.8 hours
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Python & FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          pip install pyrogram tgcrypto aiohttp aiofiles
+
+      - name: Run Bot
+        env:
+          API_ID: ${{ secrets.API_ID }}
+          API_HASH: ${{ secrets.API_HASH }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          timeout 5h 40m python3 bot.py || true
