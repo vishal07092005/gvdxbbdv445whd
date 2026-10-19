@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import time
 import math
 import shutil
@@ -8,12 +9,24 @@ from urllib.parse import urlparse, parse_qs, unquote
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
-# Secrets GitHub Environment se aayenge
-API_ID = int(os.environ.get("API_ID", 0))
-API_HASH = os.environ.get("API_HASH", "")
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+# Secrets Check
+API_ID_STR = os.environ.get("API_ID", "").strip()
+API_HASH = os.environ.get("API_HASH", "").strip()
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 
-bot = Client("fast_uploader_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+if not API_ID_STR or not API_HASH or not BOT_TOKEN:
+    print("❌ ERROR: GitHub Secrets (API_ID, API_HASH, BOT_TOKEN) खाली हैं! Settings > Secrets > Actions में जाकर चेक करो।")
+    sys.exit(1)
+
+API_ID = int(API_ID_STR)
+
+bot = Client(
+    "fast_uploader_bot",
+    api_id=API_ID,
+    api_hash=API_HASH,
+    bot_token=BOT_TOKEN,
+    in_memory=True  # Session file disk par save karne ka jhanjhat khatam
+)
 
 def humanbytes(size):
     if not size:
@@ -27,7 +40,6 @@ def humanbytes(size):
     return f"{round(size, 2)} {dic_powerN[n]}"
 
 def extract_real_url(raw_url: str) -> str:
-    """Agar player?url= wala link hai toh andar se asli m3u8 link nikalega"""
     parsed = urlparse(raw_url)
     qs = parse_qs(parsed.query)
     if "url" in qs:
@@ -37,7 +49,6 @@ def extract_real_url(raw_url: str) -> str:
 async def upload_progress(current, total, status_msg: Message, start_time, title):
     now = time.time()
     diff = now - start_time
-    # Har 3 second me progress update karega taaki Telegram FloodWait na de
     if round(diff % 3.00) == 0 or current == total:
         percentage = current * 100 / total
         speed = current / diff if diff > 0 else 0
@@ -63,11 +74,8 @@ async def upload_progress(current, total, status_msg: Message, start_time, title
 async def start_handler(client, message: Message):
     await message.reply_text(
         "🔥 **Superfast Lecture Downloader Ready!**\n\n"
-        "**Kaise use karein:**\n"
-        "Seedha link bhejein ya naam ke sath bhejein:\n"
-        "`<link> | Lecture Name`\n\n"
-        "**Example:**\n"
-        "`https://rwa.spidyuniverse.in/player?url=... | Maths Class 01`"
+        "Seedha link bhejein ya naam ke sath:\n"
+        "`<link> | Lecture Name`"
     )
 
 @bot.on_message(filters.private & filters.text & ~filters.command(["start"]))
@@ -77,7 +85,6 @@ async def handle_link(client, message: Message):
         await message.reply_text("❌ Bhai valid link bhej (`http` ya `https` se shuru hone wala).")
         return
 
-    # Link aur Title alag karna (Agar '|' lagaya hai)
     if "|" in text:
         raw_url, title = [x.strip() for x in text.split("|", 1)]
     else:
@@ -85,7 +92,6 @@ async def handle_link(client, message: Message):
         raw_url = parts[0]
         title = parts[1] if len(parts) > 1 else f"Lecture_{message.id}"
 
-    # Clean file name
     safe_title = re.sub(r'[\\/*?:"<>|]', "", title).strip() or f"Lecture_{message.id}"
     m3u8_url = extract_real_url(raw_url)
 
@@ -99,12 +105,11 @@ async def handle_link(client, message: Message):
     )
 
     try:
-        # 1. LIVE DOWNLOAD WITH YT-DLP + ARIA2C (16 Connections)
         cmd = [
             "yt-dlp",
             "--no-warnings",
             "--newline",
-            "-N", "16",  # 16 fragments parallel download
+            "-N", "16",
             "--downloader", "aria2c",
             "--downloader-args", "aria2c:-x 16 -s 16 -k 1M",
             "-o", output_mp4,
@@ -124,10 +129,9 @@ async def handle_link(client, message: Message):
                 break
             line_str = line.decode("utf-8", errors="ignore").strip()
 
-            # Live progress parser
             if "[download]" in line_str or "%" in line_str:
                 now = time.time()
-                if now - last_update >= 3:  # Har 3 sec me Telegram message update
+                if now - last_update >= 3:
                     last_update = now
                     try:
                         await status_msg.edit_text(
@@ -146,7 +150,6 @@ async def handle_link(client, message: Message):
 
         await status_msg.edit_text("🖼️ **Generating Thumbnail & Extracting Duration...**")
 
-        # 2. VIDEO DURATION & THUMBNAIL NIKALNA (Taaki Telegram me blank na dikhe)
         duration = 0
         try:
             dur_cmd = [
@@ -171,7 +174,6 @@ async def handle_link(client, message: Message):
         except Exception:
             pass
 
-        # 3. LIVE TELEGRAM UPLOAD
         start_up = time.time()
         await client.send_video(
             chat_id=message.chat.id,
@@ -190,9 +192,8 @@ async def handle_link(client, message: Message):
         await status_msg.edit_text(f"❌ **Error:** `{str(e)}`")
 
     finally:
-        # Disk clean karna
         if os.path.exists(work_dir):
             shutil.rmtree(work_dir)
 
-print("🚀 High-Speed Bot Started!")
+print("🚀 Starting High-Speed Bot...")
 bot.run()
