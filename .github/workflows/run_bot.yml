@@ -1,9 +1,9 @@
 name: High Speed TG Bot
 
 on:
-  workflow_dispatch: # Manual Start Button
+  workflow_dispatch:
   schedule:
-    - cron: '0 */5 * * *' # Har 5 ghante me auto-restart
+    - cron: '0 */5 * * *'
 
 jobs:
   run-bot:
@@ -14,11 +14,16 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install FFmpeg, Aria2c & Python Packages
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg aria2
-          pip install -U yt-dlp pyrogram tgcrypto
+          pip install -U yt-dlp kurigram tgcrypto
 
       - name: Run Telegram Bot
         env:
@@ -26,4 +31,4 @@ jobs:
           API_HASH: ${{ secrets.API_HASH }}
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
         run: |
-          timeout 5h 40m python3 bot.py || true
+          python -u bot.py
